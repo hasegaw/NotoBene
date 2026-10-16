@@ -8,9 +8,11 @@ import unittest
 
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables.DefaultTable import DefaultTable
+from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 from fontTools.ttLib.tables.ttProgram import Program
 
 from noto_bene.build import build_font
+from noto_bene.cmap import prepare_windows_bmp_cmap
 from validation.verify_font import verify
 from test_build import make_source_font
 
@@ -33,6 +35,7 @@ class ValidationRegressionTests(unittest.TestCase):
         output = self.root / filename
         with TTFont(self.valid) as font:
             mutation(font)
+            prepare_windows_bmp_cmap(font)
             font.save(output)
         return output
 
@@ -54,13 +57,48 @@ class ValidationRegressionTests(unittest.TestCase):
 
     def test_rejects_incomplete_unicode_coverage(self):
         def remove_mapping(font):
-            # Both Unicode subtables must be modified to isolate coverage checking.
+            # All Unicode subtables must be modified to isolate coverage checking.
             for table in font["cmap"].tables:
                 table.cmap.pop(0x10FFFF, None)
         damaged = self.change_font("missing.ttf", remove_mapping)
         report = verify(damaged)
         self.assertFalse(report["ok"])
         self.assertTrue(any("non-ASCII scalar mappings" in error for error in report["errors"]))
+
+    def test_rejects_missing_windows_bmp_cmap(self):
+        def remove_windows_bmp(font):
+            font["cmap"].tables = [table for table in font["cmap"].tables
+                                   if (table.platformID, table.platEncID) != (3, 1)]
+        damaged = self.change_font("missing-windows-bmp.ttf", remove_windows_bmp)
+        report = verify(damaged)
+        self.assertFalse(report["ok"])
+        self.assertIn("Expected exactly one Windows BMP cmap (platform 3, encoding 1)",
+                      report["errors"])
+
+    def test_rejects_incomplete_windows_bmp_cmap(self):
+        def remove_bmp_mapping(font):
+            for table in font["cmap"].tables:
+                if (table.platformID, table.platEncID) == (3, 1):
+                    del table.cmap[0x3000]
+        damaged = self.change_font("incomplete-windows-bmp.ttf", remove_bmp_mapping)
+        report = verify(damaged)
+        self.assertFalse(report["ok"])
+        self.assertIn("Windows BMP cmap coverage or mappings differ from the full Unicode cmap",
+                      report["errors"])
+
+    def test_rejects_wrong_windows_bmp_cmap_format(self):
+        def replace_bmp_format(font):
+            for index, table in enumerate(font["cmap"].tables):
+                if (table.platformID, table.platEncID) == (3, 1):
+                    replacement = CmapSubtable.newSubtable(12)
+                    replacement.platformID, replacement.platEncID = 3, 1
+                    replacement.language = table.language
+                    replacement.cmap = table.cmap.copy()
+                    font["cmap"].tables[index] = replacement
+        damaged = self.change_font("wrong-windows-bmp-format.ttf", replace_bmp_format)
+        report = verify(damaged)
+        self.assertFalse(report["ok"])
+        self.assertIn("Windows BMP cmap must use format 4", report["errors"])
 
     def test_rejects_wrong_source_glyph_mapping(self):
         def replace_mapping(font):
@@ -120,6 +158,7 @@ class ValidationRegressionTests(unittest.TestCase):
             delta = len(data) - (end - start)
             font["loca"].set([offset + (delta if i > index else 0)
                               for i, offset in enumerate(offsets)])
+            prepare_windows_bmp_cmap(font)
             font.save(output)
         return output
 

@@ -263,6 +263,17 @@ def verify(font_path: Path, source_path: Path | None = None) -> dict[str, Any]:
         summary.update(units_per_em=upem, glyph_count=len(order), cmap_count=len(cmap))
         full_maps = [table for table in font["cmap"].tables if table.isUnicode() and table.format == 12]
         checks.require(bool(full_maps), "No Unicode format 12 cmap")
+        windows_bmp_maps = [table for table in font["cmap"].tables
+                            if table.platformID == 3 and table.platEncID == 1]
+        checks.require(len(windows_bmp_maps) == 1,
+                       "Expected exactly one Windows BMP cmap (platform 3, encoding 1)")
+        # Format 4 reserves U+FFFF for its terminal segment; format 12 keeps
+        # that mapping and the supplementary planes in the full Unicode map.
+        expected_bmp = {cp: name for cp, name in cmap.items() if cp < 0xFFFF}
+        for table in windows_bmp_maps:
+            checks.require(table.format == 4, "Windows BMP cmap must use format 4")
+            checks.require(table.cmap == expected_bmp,
+                           "Windows BMP cmap coverage or mappings differ from the full Unicode cmap")
         for table in font["cmap"].tables:
             checks.require(table.format in (4, 12), f"Unexpected cmap format {table.format}")
             if table.isUnicode():

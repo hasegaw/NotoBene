@@ -181,7 +181,23 @@ class BuildIntegrationTests(unittest.TestCase):
         for cp in (128, 0xD7FF, 0xE000, 0xFFFF, 0x10000, 0x10FFFF):
             self.assertIn(cp, self.cmap)
         for table in self.font["cmap"].tables:
-            self.assertEqual(table.cmap, self.cmap)
+            if table.format == 12:
+                self.assertEqual(table.cmap, self.cmap)
+
+    def test_windows_bmp_map_matches_full_unicode_except_sentinel(self):
+        self.assertEqual(
+            [(table.platformID, table.platEncID, table.format)
+             for table in self.font["cmap"].tables],
+            [(0, 4, 12), (3, 1, 4), (3, 10, 12)],
+        )
+        bmp = self.font["cmap"].getcmap(3, 1)
+        self.assertEqual(bmp.cmap, {cp: name for cp, name in self.cmap.items()
+                                  if cp < 0xFFFF})
+        for cp in (0, 32, 128, 131, 0x3000, 0xD7FF, 0xE000, 0xFFFE):
+            self.assertEqual(bmp.cmap[cp], self.cmap[cp])
+        self.assertNotIn(0xFFFF, bmp.cmap)
+        self.assertIn(0xFFFF, self.cmap)
+        self.assertIn(0x10000, self.cmap)
 
     def test_unknown_non_ascii_uses_marked_notdef_but_notdef_itself_is_unchanged(self):
         original_notdef = recorded_outline(self.source, ".notdef")

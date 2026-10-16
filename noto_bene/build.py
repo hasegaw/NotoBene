@@ -14,6 +14,7 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
 from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
 
+from .cmap import prepare_windows_bmp_cmap
 from .geometry import make_marked_glyph
 
 # 2024-01-01 UTC. Fixed OpenType timestamp unless SOURCE_DATE_EPOCH is supplied.
@@ -96,17 +97,20 @@ def build_font(source, output, report=None):
 
         fb = FontBuilder(upem, isTTF=True)
         fb.setupGlyphOrder(list(glyphs))
-        # Full scalar coverage exceeds the BMP format-4 capacity. Use the
-        # standard full-repertoire Unicode and Windows format-12 encodings.
+        # Include a BMP compatibility map for Windows font loading.
+        # Keep full scalar coverage in format 12; U+FFFF is format 4's sentinel.
         fb.font["cmap"] = newTable("cmap")
         fb.font["cmap"].tableVersion = 0
         fb.font["cmap"].tables = []
-        for platform, encoding in ((0, 4), (3, 10)):
-            subtable = CmapSubtable.newSubtable(12)
+        for platform, encoding, format_id in ((0, 4, 12), (3, 1, 4), (3, 10, 12)):
+            subtable = CmapSubtable.newSubtable(format_id)
             subtable.platformID, subtable.platEncID = platform, encoding
             subtable.language = 0
-            subtable.cmap = cmap
+            subtable.cmap = cmap if format_id == 12 else {
+                cp: name for cp, name in cmap.items() if cp < 0xFFFF
+            }
             fb.font["cmap"].tables.append(subtable)
+        prepare_windows_bmp_cmap(fb.font)
         fb.setupGlyf(glyphs)
         fb.setupHorizontalMetrics(metrics)
         hhea, os2 = original["hhea"], original["OS/2"]

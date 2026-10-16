@@ -119,7 +119,7 @@ ASCIIは元の輪郭とメトリクスを引き継ぎます。非ASCIIで正の�
 
 CFFの三次曲線はすべて、最大1 font unitの近似誤差（さらにTTF座標の整数丸めあり）で二次曲線へ変換します。元のヒンティング・カーニング・字形置換・縦書き情報は引き継ぎません。加工済みの字形が元の字形へ置換されないように、出力は新しいTTFとして構築します。ASCIIと非ASCIIが同じ元グリフを参照していても、出力では分離します。
 
-文字マップは Unicode全範囲用の OpenType cmap format 12（platform 0/encoding 4 と platform 3/encoding 10）です。format 4 のみ対応する古い描画環境は対象外です。
+文字マップは Unicode全範囲用の OpenType cmap format 12（platform 0/encoding 4 と platform 3/encoding 10）に加え、Windowsでの読み込み互換性のためBMP用のformat 4（platform 3/encoding 1）を持ちます。format 4はU+FFFEまでの同じ文字・字形対応を保持します（サロゲート除外）。終端用のU+FFFFと補助平面の文字はformat 12で対応します。
 
 ## 検証
 

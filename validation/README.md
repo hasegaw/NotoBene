@@ -29,6 +29,7 @@ python validation/verify_font.py --font dist/NotoBene-Regular.ttf \
 
 - TrueTypeの必須テーブル、ファイル全体と各テーブルのチェックサム、glyph/loca/hmtxの整合性。
 - Unicode format 12 cmapに全非ASCII Unicode scalar（U+0080–U+10FFFF、サロゲート除外）が存在し、各cmapの対応先が一致すること。
+- Windows BMP用のformat 4 cmap（platform 3、encoding 1）が1つ存在し、U+FFFF未満の文字マッピングがformat 12と一致すること。format 4の終端に使われるU+FFFFと補助平面の文字はformat 12で保持します。
 - ASCIIと非ASCIIが別グリフを参照し、非ASCIIの対応先がすべて印付きグリフであること。
 - GSUB/GPOS・カラー描画・可変フォントなど、検証済みの輪郭を置換するテーブルが残存していないこと。
 - 描画時に輪郭を変更できるTrueType命令を含まないこと。`fpgm`・`prep`・`cvt `テーブルと、全グリフ（ASCII・`.notdef`・fallbackを含む）の非空命令列を拒否します。元フォントの指定有無にかかわらず検査します。
