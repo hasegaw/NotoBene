@@ -8,14 +8,14 @@ Noto Bene は、Noto Sans CJK JP をベースに、ASCII以外の文字の右上
 
 ## 表示例
 
-ASCIIの `a` とキリル文字の `а` は、通常のフォントでは見分けにくい字形です。次のデモは、ホスト名の一部を想定した文字列を、元のNotoとNoto Beneで実際に描画したものです。
+ASCIIの `a` とキリル文字の `а` は、通常のフォントでは見分けにくい字形です。次のデモは、ホスト名の表示例 `example.com` と、3文字目の `a` だけをキリル文字に置き換えた `exаmple.com` を、元のNotoとNoto Beneで実際に描画したものです。
 
 | 文字列 | 使用している文字 | Noto Beneでの表示 |
 | --- | --- | --- |
-| `amazon` | すべてASCII。`a` は U+0061 | 警告マークなし |
-| `аmаzon` | 1文字目と3文字目がキリル文字 `а`（U+0430） | その2文字に警告マーク |
+| `example.com` | すべてASCII。`a` は U+0061 | 警告マークなし |
+| `exаmple.com` | 3文字目がキリル文字 `а`（U+0430） | その1文字に警告マーク |
 
-![通常のNotoとNoto Beneによるamazonとキリル文字混在文字列の比較](docs/images/amazon-demo.png)
+![元のNotoでは似て見えるexample.comとexаmple.comを比較。Noto Beneでは3文字目のキリル文字аだけに丸囲みの感嘆符が付く](docs/images/hostname-demo.png)
 
 警告マークは画像に後から重ねたものではなく、フォントに組み込まれた字形です。元の文字を残しつつ、マークと重なる部分を円形に切り抜いています。
 
@@ -62,7 +62,7 @@ ASCIIだけで構成された偽のホスト名にはマークが付きません
 - 検出した特殊文字の位置と `U+200B` のような可視表記を、元の文字列の表示順やフォントに依存しない警告欄へ表示する。表示用の可視化をリンク先URLの書き換えに使わない。
 - 実際に組み込むブラウザやアプリで、ゼロ幅文字・方向制御・結合文字を含むケースの表示を確認する。
 
-本リポジトリの検証ツールはフォント構造と字形を検査します。全コードポイントのマッピング検証に成功しても、各アプリが特殊文字の警告を描画することまでは保証しません。`amazon` の比較デモはキリル文字の類似字形を確認する例で、特殊制御文字の表示検証を代替しません。
+本リポジトリの検証ツールはフォント構造と字形を検査します。全コードポイントのマッピング検証に成功しても、各アプリが特殊文字の警告を描画することまでは保証しません。上のホスト名の比較デモはキリル文字の類似字形を確認する例で、特殊制御文字の表示検証を代替しません。
 
 関連する仕様は、[Unicodeの識別子セキュリティ（UTS #39）](https://www.unicode.org/reports/tr39/)、[双方向表示アルゴリズム（UAX #9）](https://www.unicode.org/reports/tr9/)、[IDNAの文字マッピングと検証（UTS #46）](https://www.unicode.org/reports/tr46/)を参照してください。
 
@@ -142,17 +142,18 @@ python validation/render_preview.py \
   --output dist/preview.png
 ```
 
-ASCIIだけの `amazon` と、2つの `a` をキリル文字 `а`（U+0430）に置き換えた `аmаzon` の比較デモも生成できます。元のNoto Sans CJK JPとNoto Beneを並べ、丸囲みを含めて各フォントの実際の字形を描画します。
+READMEに掲載した `example.com` と `exаmple.com` の比較画像は、次のコマンドで再生成できます。元のNoto Sans CJK JPとNoto Beneを並べ、丸囲みを含めて各フォントの実際の字形を描画します。
 
 ```sh
 python validation/render_demo.py \
   --font dist/NotoBene-Regular.ttf \
   --source vendor/noto/NotoSansCJKjp-Regular.otf \
-  --output dist/amazon-demo.png \
-  --report dist/amazon-demo.json
+  --text example.com \
+  --output docs/images/hostname-demo.png \
+  --report dist/hostname-demo.json
 ```
 
-`amazon-demo.json` には各文字のコードポイントと、バッジが付く位置を記録します。ASCII版はマークなし、キリル文字を混ぜた版は1文字目と3文字目（0始まりの位置 `[0, 2]`）にマークが付きます。
+`hostname-demo.json` には各文字のコードポイントと、バッジが付く位置を記録します。ASCII版はマークなし、キリル文字を混ぜた版は3文字目（0始まりの位置 `[2]`）にマークが付きます。`--text` を省くと、従来の `amazon` と `аmаzon` の比較デモを生成します。
 
 ## GitHub Actions
 
