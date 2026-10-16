@@ -1,0 +1,22 @@
+Noto Bene Regular is a modified version of Noto Sans CJK JP Regular.
+Original project: https://github.com/notofonts/noto-cjk
+Original font copyright: © 2014-2021 Adobe (http://www.adobe.com/).
+Noto is a trademark of Google Inc.
+This copyright and trademark notice are also retained in the font name table.
+The SIL Open Font License 1.1 is in OFL.txt.
+Source revision and input SHA-256 checksums are in the separately distributed
+release-manifest.json. Source file URLs are in sources/noto.lock.json in the
+Noto Bene source repository.
+
+Changes: renamed the family to Noto Bene; preserved ASCII outlines and advances;
+added a circled exclamation mark of fixed 0.5 em diameter at the upper right of
+each non-ASCII glyph; removed overlapping source ink with a circular Boolean
+difference and 12% radial clearance around the badge, closing the cut contours;
+expanded positive non-ASCII advances where necessary to include the final
+right ink boundary plus 0.05 em, retained zero advances, and recomputed left
+side bearings; used the original .notdef with the same badge and width rules
+for otherwise unmapped non-ASCII Unicode scalar values; converted the original
+.notdef without a badge or metric changes; converted cubic outlines to
+quadratic TrueType outlines; removed original shaping tables. Blank non-ASCII
+glyphs contain only the badge.
+The derivative font is distributed under the SIL Open Font License 1.1.

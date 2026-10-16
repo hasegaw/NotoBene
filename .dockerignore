@@ -1,0 +1,10 @@
+.git/
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+.DS_Store
+node_modules/
+.venv/

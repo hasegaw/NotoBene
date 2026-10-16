@@ -1,0 +1,97 @@
+name: Build Noto Bene font
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact builder commit to check out; empty uses the triggering commit
+        required: false
+        type: string
+        default: ''
+      release_date:
+        description: Publication date in JST (YYYYMMDD); empty skips release packaging
+        required: false
+        type: string
+        default: ''
+      revision:
+        description: Distribution revision for the pinned Noto commit (1-99)
+        required: false
+        type: string
+        default: '1'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Download pinned Noto source and build TrueType font
+        run: python scripts/build.py --output-dir dist
+
+      - name: Verify generated font against Noto source
+        run: >-
+          python validation/verify_font.py
+          --font dist/NotoBene-Regular.ttf
+          --source vendor/noto/NotoSansCJKjp-Regular.otf
+          --json dist/validation.json
+
+      - name: Render source and output comparison
+        run: >-
+          python validation/render_preview.py
+          --font dist/NotoBene-Regular.ttf
+          --source vendor/noto/NotoSansCJKjp-Regular.otf
+          --output dist/preview.png
+
+      - name: Render ASCII and homoglyph demonstration
+        run: >-
+          python validation/render_demo.py
+          --font dist/NotoBene-Regular.ttf
+          --source vendor/noto/NotoSansCJKjp-Regular.otf
+          --output dist/amazon-demo.png
+          --report dist/amazon-demo.json
+
+      - name: Package verified release
+        if: ${{ inputs.release_date != '' }}
+        env:
+          RELEASE_DATE: ${{ inputs.release_date }}
+          RELEASE_REVISION: ${{ inputs.revision }}
+          BUILD_SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+        run: >-
+          python scripts/release.py package
+          --release-date "$RELEASE_DATE"
+          --revision "$RELEASE_REVISION"
+          --repository "$GITHUB_REPOSITORY"
+          --source-sha "$BUILD_SOURCE_SHA"
+          --dist-dir dist
+
+      - name: Upload font, reports and licenses
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: noto-bene
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30

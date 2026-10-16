@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+.DS_Store
+node_modules/
+.venv/
+*.code-workspace
+
+# Downloaded fonts and generated artifacts
+vendor/
+dist/
+__pycache__/
+*.py[cod]

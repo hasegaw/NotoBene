@@ -1,0 +1,167 @@
+name: Release Noto Bene font
+run-name: Release Noto Bene (${{ github.event_name == 'schedule' && 'latest-noto' || inputs.mode }})
+
+on:
+  schedule:
+    # Every Sunday at 09:00 JST (00:00 UTC).
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Track latest Noto automatically, or release the committed lock
+        required: true
+        type: choice
+        options:
+          - latest-noto
+          - pinned
+        default: latest-noto
+      release_date:
+        description: Pinned mode only — publication date in JST (YYYYMMDD); keep unchanged on reruns
+        required: false
+        type: string
+      revision:
+        description: Pinned mode only — distribution revision (1-99); latest Noto uses 1
+        required: false
+        type: string
+        default: '1'
+
+permissions:
+  contents: read
+
+# Serialize all releases, including different dates and Noto commits.
+concurrency:
+  group: noto-bene-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      allowed: ${{ steps.check.outputs.allowed }}
+    steps:
+      - name: Require an explicitly enabled release repository
+        id: check
+        env:
+          RELEASE_REPOSITORY: ${{ vars.RELEASE_REPOSITORY }}
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+          ENABLE_SCHEDULED_RELEASES: ${{ vars.ENABLE_SCHEDULED_RELEASES }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          reasons=()
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            reasons+=('Releases must run from the main branch.')
+          fi
+          if [[ "$RELEASE_REPOSITORY" != "$ACTUAL_REPOSITORY" ]]; then
+            reasons+=('Set the RELEASE_REPOSITORY repository variable to this exact owner/repository to enable releases.')
+          fi
+          if [[ "$EVENT_NAME" == schedule && "$ENABLE_SCHEDULED_RELEASES" != true ]]; then
+            reasons+=('Set ENABLE_SCHEDULED_RELEASES=true to enable weekly automatic releases.')
+          fi
+          if (( ${#reasons[@]} )); then
+            echo 'allowed=false' >> "$GITHUB_OUTPUT"
+            {
+              echo '## Releases are disabled'
+              printf '%s\n' "${reasons[@]}"
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+              printf '::error::%s\n' "${reasons[@]}"
+              exit 1
+            fi
+            printf '::notice::%s\n' "${reasons[@]}"
+            exit 0
+          fi
+          echo 'allowed=true' >> "$GITHUB_OUTPUT"
+
+  prepare:
+    needs: authorize
+    if: ${{ needs.authorize.outputs.allowed == 'true' && github.ref == 'refs/heads/main' && vars.RELEASE_REPOSITORY == github.repository && (github.event_name != 'schedule' || vars.ENABLE_SCHEDULED_RELEASES == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      ready: ${{ steps.prepare.outputs.ready }}
+      source_sha: ${{ steps.prepare.outputs.source_sha }}
+      release_date: ${{ steps.prepare.outputs.release_date }}
+      revision: ${{ steps.prepare.outputs.revision }}
+    steps:
+      - name: Require the main branch
+        run: |
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo '::error::Releases must be dispatched from the main branch.'
+            exit 1
+          fi
+
+      - name: Check out the triggering source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Prepare the pinned source for release
+        id: prepare
+        env:
+          RELEASE_MODE: ${{ github.event_name == 'schedule' && 'latest-noto' || inputs.mode }}
+          RELEASE_DATE: ${{ inputs.release_date }}
+          RELEASE_REVISION: ${{ inputs.revision || '1' }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_REPOSITORY: ${{ vars.RELEASE_REPOSITORY }}
+          ENABLE_SCHEDULED_RELEASES: ${{ vars.ENABLE_SCHEDULED_RELEASES }}
+        run: >-
+          python scripts/prepare_release.py
+          --mode "$RELEASE_MODE"
+          --release-date "$RELEASE_DATE"
+          --revision "$RELEASE_REVISION"
+
+  build:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.ready == 'true' }}
+    uses: ./.github/workflows/build.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.source_sha }}
+      release_date: ${{ needs.prepare.outputs.release_date }}
+      revision: ${{ needs.prepare.outputs.revision }}
+
+  publish:
+    needs: [authorize, prepare, build]
+    if: ${{ needs.authorize.outputs.allowed == 'true' && github.ref == 'refs/heads/main' && vars.RELEASE_REPOSITORY == github.repository && (github.event_name != 'schedule' || vars.ENABLE_SCHEDULED_RELEASES == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the source used by the build
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Download the verified build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: noto-bene
+          path: dist
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Publish release after all assets have been uploaded
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EXPECTED_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          RELEASE_REPOSITORY: ${{ vars.RELEASE_REPOSITORY }}
+          ENABLE_SCHEDULED_RELEASES: ${{ vars.ENABLE_SCHEDULED_RELEASES }}
+        run: python scripts/release.py publish --dist-dir dist
